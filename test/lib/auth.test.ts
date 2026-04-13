@@ -657,7 +657,36 @@ describe("exchangeSessionToken", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("throws AuthError exchange_failed on HTTP error", async () => {
+  it("falls back to OAuth token on 404 (org/enterprise plan)", async () => {
+    const mockFetch = vi.mocked(global.fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+    } as Response);
+
+    const result = await exchangeSessionToken("gho_org_token_1234567890");
+    expect(result.token).toBe("gho_org_token_1234567890");
+    expect(result.expires_at).toBeGreaterThan(Math.floor(Date.now() / 1000));
+  });
+
+  it("caches the 404 fallback token", async () => {
+    const mockFetch = vi.mocked(global.fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+    } as Response);
+
+    await exchangeSessionToken("gho_org_cached_12345678");
+    mockFetch.mockClear();
+
+    const result = await exchangeSessionToken("gho_org_cached_12345678");
+    expect(result.token).toBe("gho_org_cached_12345678");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("still throws AuthError on non-404 HTTP errors", async () => {
     const mockFetch = vi.mocked(global.fetch);
     mockFetch.mockResolvedValueOnce({
       ok: false,

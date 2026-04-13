@@ -146,6 +146,19 @@ export async function exchangeSessionToken(oauthToken: string): Promise<SessionT
       }
 
       if (!response.ok) {
+        // 404 means the individual Copilot token exchange endpoint doesn't
+        // exist for this account (org/enterprise plan).  Fall back to using
+        // the OAuth token directly — it works against api.githubcopilot.com.
+        if (response.status === 404) {
+          const DIRECT_TOKEN_TTL = 30 * 60; // 30 minutes
+          cachedSession = {
+            token: oauthToken,
+            expires_at: Math.floor(Date.now() / 1000) + DIRECT_TOKEN_TTL,
+          };
+          cachedOAuthToken = oauthToken;
+          return cachedSession;
+        }
+
         throw new AuthError(
           "exchange_failed",
           `Failed to exchange OAuth token for session token: ${response.status} ${response.statusText} (token: ${redactToken(oauthToken)})`,
